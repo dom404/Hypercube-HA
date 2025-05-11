@@ -1,0 +1,12 @@
+{
+  "domain": "hypercube_nano",
+  "name": "HyperCube Nano",
+  "documentation": "https://github.com/dom404/Hypercube-HA",
+  "issue_tracker": "https://github.com/dom404/Hypercube-HA/issues",
+  "requirements": ["aiohttp"],
+  "dependencies": [],
+  "codeowners": ["@dom404"],
+  "version": "1.0.0",
+  "iot_class": "local_polling",
+  "config_flow": true
+}
