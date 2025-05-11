@@ -14,13 +14,7 @@ from .const import DOMAIN, DEFAULT_NAME, DEFAULT_PORT
 
 _LOGGER = logging.getLogger(__name__)
 
-DATA_SCHEMA = vol.Schema({
-    vol.Required(CONF_HOST): str,
-    vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
-    vol.Optional("port", default=80): int,
-})
-
-class HyperCubeNanoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for HyperCube Nano."""
 
     VERSION = 1
@@ -33,7 +27,7 @@ class HyperCubeNanoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             try:
                 session = async_get_clientsession(self.hass)
                 async with session.get(
-                    f"http://{user_input[CONF_HOST]}:{user_input.get('port', 80)}/json",
+                    f"http://{user_input[CONF_HOST]}:{user_input.get('port', DEFAULT_PORT)}/json",
                     timeout=5
                 ) as response:
                     await response.json()
@@ -45,15 +39,16 @@ class HyperCubeNanoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title=user_input.get(CONF_NAME, DEFAULT_NAME),
                     data=user_input,
                 )
-            except (aiohttp.ClientError, aiohttp.ClientResponseError) as err:
-                _LOGGER.error("Error connecting to HyperCube Nano: %s", err)
+            except Exception as err:
+                _LOGGER.error("Connection error: %s", err)
                 errors["base"] = "cannot_connect"
-            except Exception as err:  # pylint: disable=broad-except
-                _LOGGER.error("Unexpected exception: %s", err)
-                errors["base"] = "unknown"
 
         return self.async_show_form(
             step_id="user",
-            data_schema=DATA_SCHEMA,
+            data_schema=vol.Schema({
+                vol.Required(CONF_HOST): str,
+                vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
+                vol.Optional("port", default=DEFAULT_PORT): int,
+            }),
             errors=errors,
         )
