@@ -1,4 +1,4 @@
-"""The HyperCube Nano integration."""
+"""The HyperCube Nano integration"""
 from __future__ import annotations
 
 import logging
