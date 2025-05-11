@@ -1,7 +1,7 @@
 {
   "domain": "hypercube_nano",
   "name": "HyperCube Nano",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "requirements": ["aiohttp>=3.8.0"],
   "dependencies": [],
   "codeowners": ["@dom404"],
