@@ -15,12 +15,11 @@ from homeassistant.components.light import (
     LightEntityFeature,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, DEFAULT_NAME, DEFAULT_PORT
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -206,4 +205,108 @@ class HyperCubeNanoLight(LightEntity):
             configuration_url=f"http://{self._host}:{self._port}",
         )
 
-    # ... [rest of the light.py implementation remains the same as previous]
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return self._available
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if light is on."""
+        return self._state
+
+    @property
+    def brightness(self) -> int:
+        """Return the brightness of the light."""
+        return self._brightness
+
+    @property
+    def rgb_color(self) -> tuple[int, int, int]:
+        """Return the rgb color value."""
+        return self._rgb_color
+
+    @property
+    def effect(self) -> str | None:
+        """Return the current effect."""
+        return self._effect
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return additional state attributes."""
+        return {
+            "palette": PALETTE_LIST[self._palette] if self._palette < len(PALETTE_LIST) else "Unknown",
+            "speed": self._speed,
+            "intensity": self._intensity,
+            "transition": self._transition,
+        }
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn on or control the light."""
+        data = {"on": True}
+
+        if ATTR_BRIGHTNESS in kwargs:
+            data["bri"] = kwargs[ATTR_BRIGHTNESS]
+
+        if ATTR_EFFECT in kwargs:
+            effect = kwargs[ATTR_EFFECT]
+            if effect in EFFECT_LIST:
+                effect_index = EFFECT_LIST.index(effect)
+                data["seg"] = [{"fx": effect_index}]
+
+        if ATTR_TRANSITION in kwargs:
+            data["transition"] = kwargs[ATTR_TRANSITION]
+
+        await self._send_command(data)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn off the light."""
+        data = {"on": False}
+        if ATTR_TRANSITION in kwargs:
+            data["transition"] = kwargs[ATTR_TRANSITION]
+        await self._send_command(data)
+
+    async def async_update(self) -> None:
+        """Fetch new state data for this light."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"http://{self._host}:{self._port}/json") as response:
+                    data = await response.json()
+                    self._state = data["state"]["on"]
+                    self._brightness = data["state"]["bri"]
+                    self._transition = data["state"]["transition"]
+                    
+                    if "seg" in data["state"] and len(data["state"]["seg"]) > 0:
+                        segment = data["state"]["seg"][0]
+                        if "col" in segment and len(segment["col"]) > 0:
+                            self._rgb_color = segment["col"][0]
+                        if "fx" in segment:
+                            fx_index = segment["fx"]
+                            if fx_index < len(EFFECT_LIST):
+                                self._effect = EFFECT_LIST[fx_index]
+                        if "ix" in segment:
+                            self._speed = segment["ix"]
+                        if "sx" in segment:
+                            self._intensity = segment["sx"]
+                        if "pal" in segment:
+                            self._palette = segment["pal"]
+                    
+                    self._available = True
+        except (aiohttp.ClientError, json.JSONDecodeError, KeyError) as ex:
+            _LOGGER.error("Error updating HyperCube Nano light: %s", str(ex))
+            self._available = False
+
+    async def _send_command(self, data: dict) -> None:
+        """Send command to the light."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"http://{self._host}:{self._port}/json",
+                    json=data,
+                    timeout=5
+                ) as response:
+                    if response.status != 200:
+                        _LOGGER.error("Error sending command: %s", response.status)
+                    await self.async_update()
+        except (aiohttp.ClientError, asyncio.TimeoutError) as ex:
+            _LOGGER.error("Error communicating with HyperCube Nano: %s", str(ex))
+            self._available = False
