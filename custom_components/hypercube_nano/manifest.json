@@ -6,7 +6,7 @@
   "requirements": ["aiohttp>=3.7.4"],
   "dependencies": ["aiohttp"],
   "codeowners": ["@dom404"],
-  "version": "1.0.0",
+  "version": "1.0.5",
   "iot_class": "local_polling",
   "config_flow": true
 }

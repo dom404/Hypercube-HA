@@ -1,4 +1,4 @@
-"""Constants for HyperCube Nano integration."""
+"""Constants for HyperCube Nano."""
 from typing import Final
 from homeassistant.const import CONF_HOST, CONF_NAME
 
@@ -8,10 +8,6 @@ PLATFORMS: Final = ["light"]
 DEFAULT_NAME: Final = "HyperCube Nano"
 DEFAULT_PORT: Final = 80
 
-# Configuration keys
-CONF_PORT: Final = "port"
-
-# Attributes
 ATTR_EFFECT: Final = "effect"
 ATTR_BRIGHTNESS: Final = "brightness"
 ATTR_TRANSITION: Final = "transition"

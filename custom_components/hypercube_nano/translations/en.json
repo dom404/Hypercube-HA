@@ -2,21 +2,20 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to your HyperCube",
-        "description": "Enter your device details",
+        "title": "Connect to HyperCube Nano",
         "data": {
           "host": "IP Address",
           "name": "Name (optional)",
-          "port": "Port (default: 80)"
+          "port": "Port"
         }
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect, please try again",
-      "unknown": "Unexpected error"
+      "cannot_connect": "Failed to connect",
+      "unknown": "Unknown error"
     },
     "abort": {
-      "already_configured": "Device is already configured"
+      "already_configured": "Device already configured"
     }
   }
 }

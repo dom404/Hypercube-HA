@@ -1,12 +1,12 @@
-![logo](https://your-repo/logo.png) <!-- Need to add a logo -->
+![HyperCube Nano Logo](https://github.com/dom404/Hypercube-HA/logo.png)
 
 # HyperCube Nano Integration
 
-Home Assistant integration for HyperCube Nano LED controllers
+Home Assistant integration for controlling HyperCube Nano LED controllers.
 
 [![GitHub Release][releases-shield]][releases]
 [![License][license-shield]](LICENSE.md)
 
-[releases-shield]: https://img.shields.io/github/release/yourusername/your-repo.svg?style=flat-square
-[releases]: https://github.com/yourusername/your-repo/releases
-[license-shield]: https://img.shields.io/github/license/yourusername/your-repo.svg?style=flat-square
+[releases-shield]: https://img.shields.io/github/release/yourusername/hypercube_nano.svg?style=flat-square
+[releases]: https://github.com/yourusername/hypercube_nano/releases
+[license-shield]: https://img.shields.io/github/license/yourusername/hypercube_nano.svg?style=flat-square

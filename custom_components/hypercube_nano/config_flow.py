@@ -1,4 +1,4 @@
-"""Config flow for HyperCube Nano integration."""
+"""Config flow for HyperCube Nano."""
 from __future__ import annotations
 
 import logging
@@ -7,22 +7,26 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_NAME
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-
 from .const import DOMAIN, DEFAULT_NAME, DEFAULT_PORT
 
 _LOGGER = logging.getLogger(__name__)
 
-class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for HyperCube Nano."""
+CONFIG_SCHEMA = vol.Schema({
+    vol.Required(CONF_HOST): str,
+    vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
+    vol.Optional("port", default=DEFAULT_PORT): int,
+})
+
+class HyperCubeNanoFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a HyperCube Nano config flow."""
 
     VERSION = 1
 
-    async def async_step_user(self, user_input=None) -> FlowResult:
+    async def async_step_user(self, user_input=None):
         """Handle the initial step."""
         errors = {}
-
+        
         if user_input is not None:
             try:
                 session = async_get_clientsession(self.hass)
@@ -45,10 +49,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema({
-                vol.Required(CONF_HOST): str,
-                vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
-                vol.Optional("port", default=DEFAULT_PORT): int,
-            }),
+            data_schema=CONFIG_SCHEMA,
             errors=errors,
         )
