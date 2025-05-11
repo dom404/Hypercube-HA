@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import aiohttp
+import asyncio
 from typing import Any
 
 from homeassistant.components.light import (
@@ -14,12 +15,12 @@ from homeassistant.components.light import (
     LightEntityFeature,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST
+from homeassistant.const import CONF_HOST, CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, DEFAULT_PORT
+from .const import DOMAIN, DEFAULT_NAME, DEFAULT_PORT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -154,20 +155,6 @@ PALETTE_LIST: Final[list[str]] = [
     "Yelblu"
 ]
 
-async def async_setup_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
-) -> None:
-    """Set up the light platform."""
-    # Create the device outside the entity constructor
-    host = entry.data[CONF_HOST]
-    port = entry.data.get("port", DEFAULT_PORT)
-    
-    # Initialize the light entity
-    light = HyperCubeNanoLight(entry, host, port)
-    async_add_entities([light])
-
 class HyperCubeNanoLight(LightEntity):
     """Representation of a HyperCube Nano light."""
 
@@ -176,16 +163,17 @@ class HyperCubeNanoLight(LightEntity):
     _attr_supported_features = LightEntityFeature.TRANSITION | LightEntityFeature.EFFECT
     _attr_effect_list = EFFECT_LIST
 
-    def __init__(self, entry: ConfigEntry, host: str, port: int) -> None:
-        """Initialize."""
+    def __init__(self, entry: ConfigEntry) -> None:
+        """Initialize the light."""
         self._entry = entry
-        self._host = host
-        self._port = port
-        self._attr_name = entry.data.get("name", "HyperCube Nano")
-        self._attr_unique_id = f"hypercube_{host}_{port}"
+        self._host = entry.data[CONF_HOST]
+        self._port = entry.data.get("port", DEFAULT_PORT)
+        self._attr_name = entry.data.get(CONF_NAME, DEFAULT_NAME)
+        self._attr_unique_id = f"hypercube_{self._host}_{self._port}"
         self._state = False
-        self._brightness = 150
+        self._brightness = 254  # Default to max brightness
         self._effect = None
+        self._rgb_color = [255, 255, 255]  # Default to white
         self._session = aiohttp.ClientSession()
         self._available = True
 
@@ -198,10 +186,95 @@ class HyperCubeNanoLight(LightEntity):
             model="HyperCube Nano",
             name=self._attr_name,
             sw_version="hs-1.6",
+            configuration_url=f"http://{self._host}:{self._port}",
         )
 
+    @property
+    def is_on(self) -> bool:
+        """Return true if light is on."""
+        return self._state
+
+    @property
+    def brightness(self) -> int:
+        """Return the brightness of the light."""
+        return self._brightness
+
+    @property
+    def rgb_color(self) -> tuple[int, int, int]:
+        """Return the rgb color value."""
+        return self._rgb_color
+
+    @property
+    def effect(self) -> str | None:
+        """Return the current effect."""
+        return self._effect
+
+    async def _send_command(self, data: dict) -> bool:
+        """Send command to the HyperCube device."""
+        url = f"http://{self._host}:{self._port}/json"
+        _LOGGER.debug("Sending command to %s: %s", url, data)
+        
+        try:
+            async with self._session.post(
+                url,
+                json=data,
+                timeout=5
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    _LOGGER.error("Command failed with status %s: %s", response.status, error_text)
+                    return False
+                
+                result = await response.json()
+                _LOGGER.debug("Command response: %s", result)
+                return True
+                
+        except aiohttp.ClientError as err:
+            _LOGGER.error("Network error sending command: %s", err)
+        except asyncio.TimeoutError:
+            _LOGGER.error("Timeout sending command to device")
+        except Exception as err:
+            _LOGGER.error("Unexpected error: %s", err)
+        
+        self._available = False
+        return False
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn on or control the light."""
+        data = {"on": True, "bri": self._brightness}
+        
+        if ATTR_BRIGHTNESS in kwargs:
+            data["bri"] = kwargs[ATTR_BRIGHTNESS]
+        
+        if ATTR_EFFECT in kwargs:
+            effect = kwargs[ATTR_EFFECT]
+            if effect in EFFECT_LIST:
+                data["seg"] = [{"fx": EFFECT_LIST.index(effect)}]
+        
+        if ATTR_TRANSITION in kwargs:
+            data["transition"] = kwargs[ATTR_TRANSITION]
+        
+        if await self._send_command(data):
+            self._state = True
+            if ATTR_BRIGHTNESS in kwargs:
+                self._brightness = kwargs[ATTR_BRIGHTNESS]
+            if ATTR_EFFECT in kwargs:
+                self._effect = kwargs[ATTR_EFFECT]
+            self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn off the light."""
+        data = {"on": False}
+        
+        if ATTR_TRANSITION in kwargs:
+            data["transition"] = kwargs[ATTR_TRANSITION]
+        
+        if await self._send_command(data):
+            self._state = False
+            self.async_write_ha_state()
+
     async def async_update(self) -> None:
-        """Fetch new state data."""
+        """Fetch new state data for this light."""
         try:
             async with self._session.get(
                 f"http://{self._host}:{self._port}/json",
@@ -210,15 +283,33 @@ class HyperCubeNanoLight(LightEntity):
                 data = await response.json()
                 self._state = data["state"]["on"]
                 self._brightness = data["state"]["bri"]
-                # ... [rest of state update] ...
+                
+                if "seg" in data["state"] and len(data["state"]["seg"]) > 0:
+                    segment = data["state"]["seg"][0]
+                    if "col" in segment and len(segment["col"]) > 0:
+                        self._rgb_color = segment["col"][0]
+                    if "fx" in segment:
+                        fx_index = segment["fx"]
+                        if fx_index < len(EFFECT_LIST):
+                            self._effect = EFFECT_LIST[fx_index]
+                
+                self._available = True
+                _LOGGER.debug("State updated: %s", data)
         except Exception as ex:
-            _LOGGER.error("Update failed: %s", ex)
+            _LOGGER.error("Error updating state: %s", ex)
             self._available = False
-
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn on the light."""
-        # ... [implementation] ...
 
     async def async_will_remove_from_hass(self) -> None:
         """Clean up resources."""
-        await self._session.close()
+        await super().async_will_remove_from_hass()
+        if hasattr(self, '_session') and self._session:
+            await self._session.close()
+        _LOGGER.debug("Cleanup completed for HyperCube Nano")
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up HyperCube Nano light from a config entry."""
+    async_add_entities([HyperCubeNanoLight(entry)])
